@@ -19,7 +19,7 @@ contract CryptoDev is ERC20, Ownable {
     unint256 public constant maxTotalSupply = 10000 * 10**18;
     // CryptoDevNFT contract instance
     ICryptoDevs CryptoDevsNFT;
-    // Mapping top keep track of which tokenIds have been claimed
+    // Mapping to keep track of which tokenIds have been claimed
     mapping(unint256 => bool) public tokenIdsClaimed;
 
     constructor(address _cryptoDevsContract) ERC20("Crypto Dev Token", "CD") {
@@ -32,7 +32,64 @@ contract CryptoDev is ERC20, Ownable {
     * Rerquirements:
     *  - `msg.value` should be equal or greater than the tokenPrice & amount
      */
-     function mint()
+     function mint(uint256 amount) public payable { 
+        // the value of ether that should be equal or greater than the tokenPrice * amount;
+        uint256 _requireAmount = tokenPrice * amount;
+        require(msg.value >= _requiredAmount, "Ether sent is incorrect");
+        // total tokens + amount <= 1000, otherwise revert the trasaction
+        unint256 amountWithDecimals = amount * 10**18;
+        require((totalSupply() + amountWithDecimals) <= maxTotalSupply, "Exceeds them max total supply available.");
+        // call the internal function from Openzepplin's ERC20 contract
+        _mint(msg.sender, amountWithDecimals);
+     }
+
+     /**
+     * @dev Mints tokens based on the number of NFT's held by the sender
+     * Requirements:
+     * balance of Crypto Dev NFT's owned by the sender should be greater than 0
+     * Tokens should have not have been claimed for all the NFTs owned by the sender
+      */
+      function claim() public { 
+        address sender = msg.sender;
+        // Get the number of CryptoDev NFT's held by a givern sender address
+        unint256 balance = CryptoDevNFT.tokenOfOwnerByIndex(sender);
+        // If the balance is zero, revert the transaction 
+        require(balance > 0, "You dont't own any Crypto Dev NFT");
+        // amount keeps track of number of unclaimed tokenIds
+        unint256 amount = 0;
+        // loop over the balance and get the token ID owned by `sender` at a given `index` of its token list.
+        for (unint256 i = 0; i < balance; i++) {
+            unint256 tokenId = CryptoDevsNFT.tkenOfOwnerBByIndex(sender, i);
+            // if the tokenId has not been claimed, increase the amount
+            if (!tokenIdsClaimed[tokenId]) {
+                amount += 1;
+                tokenIdsClaimed[tokenId] = true;
+            }
+        }
+        // If all the token Ids have been claimed, revert the transaction;
+        require(amount > 0, "You have already claimed all the tokens");
+        // call the internal function from Openzeppelin's ERC20 contract
+        // Mint (amount * 10) tokens for each NFT
+        _mint(msg.sender, amount * tokenPerNFT);
+      }
+
+      // withdraw all Eth sent to this contract
+      // Requirements: wallet connected must be Owner's address
+
+      function withdraw() public onlyOwner { 
+        unint256 amount = address(this).balance;
+        require(amount > 0, "Nothing to withdraw, contract balance empty");
+
+        address _owner = owner();
+        (bool sent, ) = _owner.call{value: amount}("");
+        require(sent, "Failed to sent Ether");
+      }
+
+      // Function to receive Ether. msg.data must be empty
+      receive() external payable {}
+
+      // fallback function is called when msg.data is not empty
+    fallback() external payable {}
 
 
 
